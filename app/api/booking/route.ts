@@ -1,107 +1,48 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-interface BookingRequest {
-  name: string;
-  phone: string;
-  email: string;
-  service: string;
-  package: string;
-  message: string;
-}
-
-interface Booking extends BookingRequest {
-  id: string;
-  status: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// In-memory storage for demo (replace with database)
-const bookings: Booking[] = [];
-
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const body: BookingRequest = await request.json();
+    const body = await req.json();
 
-    // Validate required fields
-    const { name, phone, email, service, packageType: pkg, message } = body;
+    const { name, phone, email, service, package: pkg, message } = body;
 
-    if (!name || !phone || !email || !service || !body.package || !message) {
+    if (!name || !phone || !service || !pkg) {
       return NextResponse.json(
-        { message: 'Missing required fields' },
+        {
+          success: false,
+          message: "Missing required fields",
+        },
         { status: 400 }
       );
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { message: 'Invalid email format' },
-        { status: 400 }
-      );
-    }
+    const booking = await prisma.booking.create({
+      data: {
+        name,
+        phone,
+        email,
+        service,
+        package: pkg,
+        message,
+        status: "pending",
+      },
+    });
 
-    // Validate phone format
-    const phoneRegex = /^[\d\s\-\+\(\)]{10,}$/;
-    if (!phoneRegex.test(phone)) {
-      return NextResponse.json(
-        { message: 'Invalid phone number format' },
-        { status: 400 }
-      );
-    }
+    return NextResponse.json({
+      success: true,
+      message: "Booking saved successfully",
+      data: booking,
+    });
 
-    // Create booking object
-    const booking: Booking = {
-      id: Date.now().toString(),
-      name,
-      phone,
-      email,
-      service,
-      package: body.package,
-      message,
-      status: 'pending',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    // TODO: Save to database using Prisma
-    // const booking = await prisma.booking.create({
-    //   data: {
-    //     name,
-    //     phone,
-    //     email,
-    //     service,
-    //     package: packageValue,
-    //     message,
-    //     status: 'pending',
-    //   },
-    // });
-
-    // For demo purposes, store in memory
-    bookings.push(booking);
-
-    console.log('Booking created:', booking);
+  } catch (error) {
+    console.error(error);
 
     return NextResponse.json(
       {
-        message: 'Booking submitted successfully',
-        booking: {
-          id: booking.id,
-          name: booking.name,
-          email: booking.email,
-          service: booking.service,
-          package: booking.package,
-          status: booking.status,
-          createdAt: booking.createdAt,
-        },
+        success: false,
+        message: "Internal Server Error",
       },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error('Booking error:', error);
-    return NextResponse.json(
-      { message: 'Failed to process booking' },
       { status: 500 }
     );
   }
@@ -109,26 +50,21 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    // TODO: Fetch from database using Prisma
-    // const bookings = await prisma.booking.findMany({
-    //   orderBy: {
-    //     createdAt: 'desc',
-    //   },
-    // });
-
-    return NextResponse.json(
-      {
-        message: 'Bookings retrieved successfully',
-        bookings: bookings,
-        total: bookings.length,
+    const bookings = await prisma.booking.findMany({
+      orderBy: {
+        createdAt: "desc",
       },
-      { status: 200 }
-    );
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: bookings,
+    });
+
   } catch (error) {
-    console.error('Error fetching bookings:', error);
-    return NextResponse.json(
-      { message: 'Failed to fetch bookings' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: false,
+      message: "Failed to fetch bookings",
+    });
   }
 }
